@@ -1,0 +1,292 @@
+{
+  "name": "30-Day Multi-Channel Nurture Funnel (GHL + n8n)",
+  "meta": {
+    "description": "Branching 30-day re-engagement sequence for cold/unresponsive leads, mixing Email, SMS, and voicemail drops. Engagement (open/click/reply) accelerates the lead toward a human; non-engagement continues the scheduled cadence. Reply or booking immediately exits the sequence. Portfolio demo — all credentials, phone numbers, and account IDs below are placeholders.",
+    "instanceId": "PORTFOLIO-DEMO-NURTURE-FUNNEL"
+  },
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ghl-nurture-entry-webhook",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "node-1-webhook-trigger",
+      "name": "1. Tag Added: move-to-nurture-sequence (Webhook)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [180, 340],
+      "notes": "Entry point. Fed by Speed-to-Lead, Missed Call, and Review Generation workflows when a lead goes unresponsive."
+    },
+    {
+      "parameters": {
+        "functionCode": "const lead = items[0].json;\nreturn [{ json: { contact_id: lead.contact_id || 'DEMO-CONTACT-ID', first_name: lead.first_name || 'Friend' } }];"
+      },
+      "id": "node-2-normalize",
+      "name": "2. Normalize Lead Data",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [400, 340]
+    },
+    {
+      "parameters": { "amount": 1, "unit": "days" },
+      "id": "node-3-wait-day1",
+      "name": "3. Wait 1 Day",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [620, 220]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://services.leadconnectorhq.com/conversations/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "type", "value": "Email" },
+            { "name": "contactId", "value": "={{$json.contact_id}}" },
+            { "name": "message", "value": "Day 1 Email — value-based tip, no hard pitch. Subject: 'Quick question about [service]'" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "node-4-day1-email",
+      "name": "4. Day 1: Send Value Email",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [840, 220]
+    },
+    {
+      "parameters": { "amount": 2, "unit": "days" },
+      "id": "node-5-wait-day3",
+      "name": "5. Wait 2 More Days (Day 3)",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [1060, 220]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://services.leadconnectorhq.com/conversations/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "type", "value": "SMS" },
+            { "name": "contactId", "value": "={{$json.contact_id}}" },
+            { "name": "message", "value": "Hi {{$json.first_name}}, just checking in — still interested in [service]? No pressure either way!" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "node-6-day3-sms",
+      "name": "6. Day 3: Send Soft Check-in SMS",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1280, 220]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://services.leadconnectorhq.com/contacts/={{$json.contact_id}}/engagement-check",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "node-7-check-engagement",
+      "name": "7. Check Engagement (Opened/Clicked/Replied)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1500, 220]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [{ "value1": "={{$json.engaged}}", "value2": true }]
+        }
+      },
+      "id": "node-8-if-engaged",
+      "name": "8. IF Engaged (Open/Click/Reply)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1720, 220]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://services.leadconnectorhq.com/tasks/",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "contactId", "value": "={{$json.contact_id}}" },
+            { "name": "title", "value": "Lead is warming up (engaged with nurture) — follow up personally" },
+            { "name": "assignedTo", "value": "DEMO-REP-USER-ID" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "node-9-notify-rep-warm",
+      "name": "9. Notify Rep — Warming Up Lead",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1940, 140]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://services.leadconnectorhq.com/contacts/={{$json.contact_id}}/tags",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyParameters": { "parameters": [{ "name": "tags", "value": "nurture-engaged" }] },
+        "options": {}
+      },
+      "id": "node-10-tag-engaged",
+      "name": "10. Tag: nurture-engaged",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1940, 300]
+    },
+    {
+      "parameters": { "amount": 2, "unit": "days" },
+      "id": "node-11-wait-day5",
+      "name": "11. Wait 2 More Days (Day 5) — Non-Engaged Path Continues",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [1720, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://services.leadconnectorhq.com/calls/voicemail-drop",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "contactId", "value": "={{$json.contact_id}}" },
+            { "name": "audioUrl", "value": "[PRE_RECORDED_VOICEMAIL_URL]" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "node-12-day5-voicemail",
+      "name": "12. Day 5: Voicemail Drop",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1940, 400],
+      "notes": "GHL native Voicemail Drop feature — delivers pre-recorded audio directly to voicemail without ringing the phone."
+    },
+    {
+      "parameters": { "amount": 25, "unit": "days" },
+      "id": "node-13-wait-remaining",
+      "name": "13. Continue Days 8, 12, 16, 20, 25 (Email/SMS/Voicemail mix)",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [2160, 400],
+      "notes": "Represents the remaining scheduled touchpoints per the 30-day content calendar: Day 8 Email (case study), Day 12 SMS, Day 16 Email (FAQ/objections), Day 20 Voicemail, Day 25 SMS (soft offer). Each follows the same wait->send->engagement-check pattern as Days 1-5 above."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://services.leadconnectorhq.com/conversations/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "type", "value": "Email" },
+            { "name": "contactId", "value": "={{$json.contact_id}}" },
+            { "name": "message", "value": "Day 30 Breakup Email: 'I don't want to keep bothering you if the timing isn't right. Should I close your file, or would you like me to check back in a few months?'" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "node-14-day30-breakup",
+      "name": "14. Day 30: Send Breakup Email",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [2380, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://services.leadconnectorhq.com/contacts/={{$json.contact_id}}/tags",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyParameters": { "parameters": [{ "name": "tags", "value": "long-term-nurture" }] },
+        "options": {}
+      },
+      "id": "node-15-tag-longterm",
+      "name": "15. Tag: long-term-nurture (quarterly check-in list)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [2600, 400]
+    }
+  ],
+  "connections": {
+    "1. Tag Added: move-to-nurture-sequence (Webhook)": {
+      "main": [[{ "node": "2. Normalize Lead Data", "type": "main", "index": 0 }]]
+    },
+    "2. Normalize Lead Data": {
+      "main": [[{ "node": "3. Wait 1 Day", "type": "main", "index": 0 }]]
+    },
+    "3. Wait 1 Day": {
+      "main": [[{ "node": "4. Day 1: Send Value Email", "type": "main", "index": 0 }]]
+    },
+    "4. Day 1: Send Value Email": {
+      "main": [[{ "node": "5. Wait 2 More Days (Day 3)", "type": "main", "index": 0 }]]
+    },
+    "5. Wait 2 More Days (Day 3)": {
+      "main": [[{ "node": "6. Day 3: Send Soft Check-in SMS", "type": "main", "index": 0 }]]
+    },
+    "6. Day 3: Send Soft Check-in SMS": {
+      "main": [[{ "node": "7. Check Engagement (Opened/Clicked/Replied)", "type": "main", "index": 0 }]]
+    },
+    "7. Check Engagement (Opened/Clicked/Replied)": {
+      "main": [[{ "node": "8. IF Engaged (Open/Click/Reply)", "type": "main", "index": 0 }]]
+    },
+    "8. IF Engaged (Open/Click/Reply)": {
+      "main": [
+        [
+          { "node": "9. Notify Rep — Warming Up Lead", "type": "main", "index": 0 },
+          { "node": "10. Tag: nurture-engaged", "type": "main", "index": 0 }
+        ],
+        [{ "node": "11. Wait 2 More Days (Day 5) — Non-Engaged Path Continues", "type": "main", "index": 0 }]
+      ]
+    },
+    "11. Wait 2 More Days (Day 5) — Non-Engaged Path Continues": {
+      "main": [[{ "node": "12. Day 5: Voicemail Drop", "type": "main", "index": 0 }]]
+    },
+    "12. Day 5: Voicemail Drop": {
+      "main": [[{ "node": "13. Continue Days 8, 12, 16, 20, 25 (Email/SMS/Voicemail mix)", "type": "main", "index": 0 }]]
+    },
+    "13. Continue Days 8, 12, 16, 20, 25 (Email/SMS/Voicemail mix)": {
+      "main": [[{ "node": "14. Day 30: Send Breakup Email", "type": "main", "index": 0 }]]
+    },
+    "14. Day 30: Send Breakup Email": {
+      "main": [[{ "node": "15. Tag: long-term-nurture (quarterly check-in list)", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "tags": ["portfolio-demo", "ghl", "nurture-funnel", "multi-channel", "lead-recovery"],
+  "sub_workflows": [
+    {
+      "name": "Nurture Exit — Reply Detected",
+      "description": "Separate GHL workflow. Trigger: Customer Replied while in nurture. Removes contact from the nurture workflow, creates an immediate follow-up task, tags 'nurture-converted-to-active'."
+    },
+    {
+      "name": "Nurture Exit — Booking Detected",
+      "description": "Separate GHL workflow. Trigger: Appointment Booked while in nurture. Removes contact from nurture workflow, tags 'nurture-converted-booked'."
+    }
+  ],
+  "compliance_notes": "Every SMS includes 'Reply STOP to unsubscribe' (GHL default). Every email includes a working unsubscribe link per CAN-SPAM/TCPA requirements."
+}
